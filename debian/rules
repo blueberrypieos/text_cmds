@@ -1,0 +1,46 @@
+#!/usr/bin/make -f
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c) 2026 The Blueberry Pie OS Authors
+
+include /usr/share/pietoolchain/rules.mk
+RC_ProjectSourceVersion := 199
+include debian/tools.mk
+JQ := $(SRCROOT)/jq
+ONIG := $(JQ)/modules/oniguruma/src
+JQGEN := $(OBJ)/jqgen
+jq_FLAGS += -I$(JQGEN) -I$(JQ) -I$(ONIG)
+bintrans_FLAGS := -I$(CURDIR)/debian
+sort_FLAGS += -I$(CURDIR)/debian
+ONIG_SRCS := ascii big5 cp1251 euc_jp euc_jp_prop euc_kr euc_tw gb18030 iso8859_1 iso8859_10 \
+	iso8859_11 iso8859_13 iso8859_14 iso8859_15 iso8859_16 iso8859_2 iso8859_3 iso8859_4 \
+	iso8859_5 iso8859_6 iso8859_7 iso8859_8 iso8859_9 koi8 koi8_r onig_init regcomp \
+	regenc regerror regexec regext reggnu regparse regposerr regsyntax regtrav regversion sjis \
+	sjis_prop st unicode unicode_fold1_key unicode_fold2_key unicode_fold3_key \
+	unicode_fold_data unicode_unfold_key utf16_be utf16_le utf32_be utf32_le utf8
+ONIG_OBJS := $(patsubst %,$(OBJ)/onig/%.o,$(ONIG_SRCS))
+$(OBJ)/onig/%.o: $(ONIG)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(BASE_CFLAGS) -I$(CURDIR)/debian/onig -c $< -o $@
+$(OBJ)/libonigurama.a: $(ONIG_OBJS)
+	$(LIBTOOL) -static -o $@ $^
+$(OBJ)/bin/jq: $(OBJ)/libonigurama.a
+$(JQGEN)/src/version.h:
+	@mkdir -p $(dir $@)
+	echo '#define JQ_VERSION "1.7.1-apple"' > $@
+$(JQGEN)/src/config_opts.inc:
+	@mkdir -p $(dir $@)
+	echo '#define JQ_CONFIG "--with-oniguruma=builtin"' > $@
+$(OBJ)/jq/jq/src/main.o: $(JQGEN)/src/version.h $(JQGEN)/src/config_opts.inc
+include $(PIETOOLCHAIN)/tools.mk
+
+all: $(TOOL_BINS)
+
+MD5_VARIANTS := md5sum sha1 sha1sum sha224 sha224sum sha256 sha256sum sha384 sha384sum \
+	sha512 sha512sum
+BINTRANS_MANS := b64decode b64encode base64 uudecode uuencode
+install: install-tools
+	set -e; for v in e f z ze zf bz bze bzf; do ln -f $(ROOT)/usr/bin/grep $(ROOT)/usr/bin/$${v}grep; done
+	set -e; for v in $(MD5_VARIANTS); do ln -f $(ROOT)/sbin/md5 $(ROOT)/sbin/$$v; done
+	set -e; for m in $(BINTRANS_MANS); do ln -s bintrans.1 $(ROOT)/usr/share/man/man1/$$m.1; done
+
+.PHONY: all install
