@@ -1,5 +1,6 @@
 #define _DARWIN_C_SOURCE 1
 #define HAVE_MEMMEM 1
+#define HAVE_ARC4RANDOM 1
 #define USE_DECNUM 1
 #define HAVE_PTHREAD 1
 #define HAVE_ISATTY 1

@@ -1,3 +1,20 @@
+text-cmds (199+ds1-2) blueberry-pie-os; urgency=medium
+
+  * The source URL names the GitHub repository.
+  * Build-Depend on pietoolchain-host and pietoolchain-sdk.
+  * sort makes its temporary files with mkstemp. It no longer follows a link
+    that another user plants under the next file's name.
+  * sort -o with an output that is also an input writes a temporary file made
+    with mkstemp. It no longer follows a link planted under OUTPUT.tmp. With
+    --compress-program the output is no longer compressed, and with -c or -C
+    the file is left alone.
+  * Update jq to 1.8.2, which fixes memory errors and crashes on crafted
+    input and programs.
+  * jq's regular expression parser sets a backreference's level before it
+    reads it.
+
+ -- Maxwell <maxwell@blueberrypieos.com>  Tue, 17 Nov 2026 20:20:28 +0000
+
 text-cmds (199+ds1-1) blueberry-pie-os; urgency=medium
 
   * text_cmds 199

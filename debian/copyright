@@ -387,6 +387,27 @@ Files: debian/*
 Copyright: 2026 The Blueberry Pie OS Authors
 License: BSD-2-Clause
 
+Files: debian/patches/0001-sort-mkstemp.patch
+ debian/patches/0003-sort-output-mkstemp.patch
+Copyright: 2009 Gabor Kovesdan <gabor@FreeBSD.org>
+ 2012 Oleg Moskalenko <mom040267@gmail.com>
+ 2026 The Blueberry Pie OS Authors
+License: LicenseRef-BSD-2-Clause-author-contributors
+
+Files: debian/patches/0002-jq-1.8.2.patch
+Copyright: 2012 Stephen Dolan
+ 2016 Kungliga Tekniska Högskolan
+ 1997-1998, 2005, 2008 The NetBSD Foundation, Inc.
+ 1984, 1989-1990, 2000-2015, 2018-2021 Free Software Foundation, Inc.
+ 1991, 1996, 2000-2001 Lucent Technologies
+ 2026 The Blueberry Pie OS Authors
+License: MIT AND CC-BY-3.0 AND BSD-2-Clause AND public-domain AND LicenseRef-BSD-2-Clause-NetBSD AND GPL-3.0-or-later with Bison-2.2 exception AND dtoa
+
+Files: debian/patches/0004-oniguruma-backref-level.patch
+Copyright: 2002-2024 K.Kosako
+ 2026 The Blueberry Pie OS Authors
+License: LicenseRef-BSD-2-Clause-author-contributors
+
 License: BSD-2-Clause
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are

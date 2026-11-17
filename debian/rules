@@ -26,7 +26,7 @@ $(OBJ)/libonigurama.a: $(ONIG_OBJS)
 $(OBJ)/bin/jq: $(OBJ)/libonigurama.a
 $(JQGEN)/src/version.h:
 	@mkdir -p $(dir $@)
-	echo '#define JQ_VERSION "1.7.1-apple"' > $@
+	echo '#define JQ_VERSION "1.8.2"' > $@
 $(JQGEN)/src/config_opts.inc:
 	@mkdir -p $(dir $@)
 	echo '#define JQ_CONFIG "--with-oniguruma=builtin"' > $@

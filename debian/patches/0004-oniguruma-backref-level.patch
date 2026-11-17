@@ -1,0 +1,35 @@
+Description: Set the backreference level before Oniguruma reads it
+ fetch_name_with_level() and fetch_token() could leave the level of a
+ backreference unset, and the parser then read an uninitialised value.
+ jq compiles regular expressions from its programs and its input, so any
+ such expression reached this code. This is oss-fuzz issue 68418.
+Origin: upstream, https://github.com/kkos/oniguruma/commit/9ae7a3634fe814bb86d600bfdec19e74f6cfd7ad
+Author: K.Kosako
+Last-Update: 2026-11-17
+
+--- a/jq/modules/oniguruma/src/regparse.c
++++ b/jq/modules/oniguruma/src/regparse.c
+@@ -26,6 +26,7 @@
+  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+  * SUCH DAMAGE.
+  */
++/* Modified 2026-11-17: fetch_name_with_level() and fetch_token() set the backreference level before it is read. */
+ 
+ #ifdef DEBUG_ND_FREE
+ #ifndef NEED_TO_INCLUDE_STDIO
+@@ -4801,6 +4802,7 @@
+ 
+   end_code = get_name_end_code_point(start_code);
+ 
++  *rlevel = 0;
+   digit_count = 0;
+   name_end = end;
+   r = 0;
+@@ -5884,6 +5886,7 @@
+         tok->u.backref.by_name = 0;
+ #ifdef USE_BACKREF_WITH_LEVEL
+         tok->u.backref.exist_level = 0;
++        tok->u.backref.level = 0;
+ #endif
+         break;
+       }

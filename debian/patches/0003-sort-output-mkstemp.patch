@@ -1,0 +1,177 @@
+Description: Make sort's temporary output file with mkstemp and write through it
+ When the output file was also an input, sort wrote to OUTPUT.tmp and
+ renamed it over the output. It took the first such name that did not
+ exist and opened it with fopen, which follows a symbolic link. Another
+ user could leave a dangling link under that name in a shared directory,
+ and a sort run by root would create or truncate the link's target.
+ .
+ sort now makes the file with mkstemp in the output's directory, with mode
+ 0600 as before, and keeps its descriptor. openfile writes the output
+ through a duplicate of that descriptor and never opens the file by name,
+ so a link put in its place is not followed. sort removes the file if it
+ exits with an error or on a signal. rename replaces the output, so the
+ output is no longer unlinked first, and a failed rename leaves it as it
+ was. The file is not listed with the spill files, so --compress-program
+ does not compress the output. With -c or -C sort writes no output, and it
+ no longer makes the file or replaces the output with it.
+Author: The Blueberry Pie OS Authors
+Forwarded: no
+Last-Update: 2026-11-17
+
+--- a/sort/file.c
++++ b/sort/file.c
+@@ -27,6 +27,7 @@
+  * SUCH DAMAGE.
+  */
+ /* Modified 2026-11-17: temporary files are made with mkstemp. */
++/* Modified 2026-11-17: the temporary output file is written through the descriptor from mkstemp. */
+ 
+ #include <sys/cdefs.h>
+ __FBSDID("$FreeBSD$");
+@@ -65,6 +66,9 @@
+ 
+ bool use_mmap;
+ 
++static const char *held_output;
++static int held_output_fd = -1;
++
+ const char *tmpdir = "/var/tmp";
+ const char *compress_program;
+ 
+@@ -571,6 +575,14 @@
+ 	return (0);
+ }
+ 
++void
++hold_output(const char *fn, int fd)
++{
++
++	held_output = fn;
++	held_output_fd = fd;
++}
++
+ /*
+  * Opens a file.  If the given filename is "-", stdout will be
+  * opened.
+@@ -582,6 +594,15 @@
+ 
+ 	if (strcmp(fn, "-") == 0) {
+ 		return ((mode && mode[0] == 'r') ? stdin : stdout);
++	} else if (held_output != NULL && mode[0] == 'w' &&
++	    strcmp(fn, held_output) == 0) {
++		int fd;
++
++		if ((fd = fcntl(held_output_fd, F_DUPFD_CLOEXEC, 0)) == -1 ||
++		    ftruncate(fd, 0) == -1 ||
++		    lseek(fd, 0, SEEK_SET) == -1 ||
++		    (file = fdopen(fd, mode)) == NULL)
++			err(2, "%s", fn);
+ 	} else {
+ 		mode_t orig_file_mask = 0;
+ 		int is_tmp = file_is_tmp(fn);
+--- a/sort/file.h
++++ b/sort/file.h
+@@ -28,6 +28,7 @@
+  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+  * SUCH DAMAGE.
+  */
++/* Modified 2026-11-17: hold_output() names the temporary output file and its descriptor. */
+ 
+ #if !defined(__SORT_FILE_H__)
+ #define	__SORT_FILE_H__
+@@ -115,6 +116,7 @@
+ int check(const char *);
+ void merge_files(struct file_list *fl, const char *fn_out);
+ FILE *openfile(const char *, const char *);
++void hold_output(const char *, int);
+ void closefile(FILE *, const char *);
+ int procfile(const char *fn, struct sort_list *list, struct file_list *fl);
+ 
+--- a/sort/sort.c
++++ b/sort/sort.c
+@@ -26,6 +26,7 @@
+  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+  * SUCH DAMAGE.
+  */
++/* Modified 2026-11-17: the temporary output file for an output that is also an input is made with mkstemp and written through its descriptor. */
+ 
+ #include <sys/cdefs.h>
+ __FBSDID("$FreeBSD$");
+@@ -449,6 +450,17 @@
+ 	}
+ }
+ 
++static char outfile_tmp[PATH_MAX];
++static volatile sig_atomic_t have_outfile_tmp;
++
++static void
++remove_outfile_tmp(void)
++{
++
++	if (have_outfile_tmp)
++		unlink(outfile_tmp);
++}
++
+ /*
+  * Signal handler that clears the temporary files.
+  */
+@@ -461,6 +473,8 @@
+     void *context __unused)
+ {
+ 
++	if (have_outfile_tmp)
++		unlink(outfile_tmp);
+ 	clear_tmp_files();
+ #ifdef __APPLE__
+ 	/*
+@@ -1318,23 +1332,26 @@
+ 		get_random_seed(random_source);
+ 
+ 	/* Case when the outfile equals one of the input files: */
+-	if (strcmp(outfile, "-")) {
++	if (strcmp(outfile, "-") && !sort_opts_vals.cflag) {
+ 
+ 		for(int i = 0; i < argc; ++i) {
+ 			if (strcmp(argv[i], outfile) == 0) {
++				int fd;
++
+ 				real_outfile = sort_strdup(outfile);
+-				for(;;) {
+-					char* tmp = sort_malloc(strlen(outfile) +
+-					    strlen(".tmp") + 1);
+-
+-					strcpy(tmp, outfile);
+-					strcpy(tmp + strlen(tmp), ".tmp");
+-					sort_free(outfile);
+-					outfile = tmp;
+-					if (access(outfile, F_OK) < 0)
+-						break;
+-				}
+-				tmp_file_atexit(outfile);
++				if (snprintf(outfile_tmp, sizeof(outfile_tmp),
++				    "%s.XXXXXXXXXX", outfile) >= (int)sizeof(outfile_tmp))
++					errc(2, ENAMETOOLONG, "%s", outfile);
++				if ((fd = mkostemp(outfile_tmp, O_CLOEXEC)) == -1)
++					err(2, "%s", outfile_tmp);
++				have_outfile_tmp = 1;
++				atexit(remove_outfile_tmp);
++				if (fchmod(fd, S_IRUSR | S_IWUSR) == -1)
++					err(2, "%s", outfile_tmp);
++				hold_output(outfile_tmp, fd);
++				sort_free(outfile);
++				outfile = sort_strdup(outfile_tmp);
++				break;
+ 			}
+ 		}
+ 	}
+@@ -1398,9 +1415,9 @@
+ 	}
+ 
+ 	if (real_outfile) {
+-		unlink(real_outfile);
+ 		if (rename(outfile, real_outfile) < 0)
+ 			err(2, NULL);
++		have_outfile_tmp = 0;
+ 		sort_free(real_outfile);
+ 	}
+ 

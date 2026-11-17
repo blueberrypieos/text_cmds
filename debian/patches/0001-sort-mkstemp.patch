@@ -1,0 +1,41 @@
+Description: Make sort's temporary files with mkstemp
+ sort named its temporary files .bsdsort.PID.N in /var/tmp and opened them
+ with fopen, which follows a symbolic link. Another local user could plant a
+ link under the next name and make a large sort overwrite a file that the
+ user running sort can write. mkstemp creates each file under a random name.
+Origin: upstream, https://github.com/freebsd/freebsd-src/commit/3f9e5e59bda05acea409fa3121c835a74672de1c
+Author: Baptiste Daroussin
+Last-Update: 2026-11-17
+
+--- a/sort/file.c
++++ b/sort/file.c
+@@ -26,6 +26,7 @@
+  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+  * SUCH DAMAGE.
+  */
++/* Modified 2026-11-17: temporary files are made with mkstemp. */
+ 
+ #include <sys/cdefs.h>
+ __FBSDID("$FreeBSD$");
+@@ -233,15 +234,15 @@
+ char *
+ new_tmp_file_name(void)
+ {
+-	static size_t tfcounter = 0;
+-	static const char *fn = ".bsdsort.";
+ 	char *ret;
+-	size_t sz;
++	int fd;
+ 
+-	sz = strlen(tmpdir) + 1 + strlen(fn) + 32 + 1;
+-	ret = sort_malloc(sz);
++	if (asprintf(&ret, "%s/.bsdsort.XXXXXXXXXX", tmpdir) == -1)
++		err(2, "asprintf()");
++	if ((fd = mkstemp(ret)) == -1)
++		err(2, "mkstemp()");
++	close(fd);
+ 
+-	sprintf(ret, "%s/%s%d.%lu", tmpdir, fn, (int) getpid(), (unsigned long)(tfcounter++));
+ 	tmp_file_atexit(ret);
+ 	return (ret);
+ }
